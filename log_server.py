@@ -1,20 +1,16 @@
-import sys
 import zmq
 from loguru import logger
 
 # ZeroMQ server setup
 context = zmq.Context()
 socket = context.socket(zmq.PULL)
-socket.bind("tcp://*:5555")
+socket.bind("tcp://*:5555")  # Listen for log messages
 
-# Loguru setup
-logger.add("logs/gesture_logs.log", rotation="00:00", compression="zip")
+# Setup Loguru logging to file
+logger.add("logs/unified_log.log", rotation="00:00", compression="zip", level="INFO")
 
-logger.info("Logging server started, waiting for messages...")
+logger.info("Logging server started...")
 
 while True:
-    try:
-        log_message = socket.recv_string()
-        logger.info(log_message)
-    except Exception as e:
-        logger.exception("Error receiving log message")
+    message = socket.recv_string()
+    logger.info(message)

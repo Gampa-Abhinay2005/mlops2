@@ -1,17 +1,20 @@
+import toml
 from loguru import logger
-import os
 
-# Ensure the logs directory exists
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)  # This will create 'logs' if it doesn't exist
+# Load configuration
+config = toml.load("config.toml")
 
-# Correct log file path
-log_file_path = os.path.join(log_dir, "gesture_logs.log")
+# Extract logging settings
+log_config = config["logging"]
+log_file = log_config["log_file"]
+rotation = log_config["rotation"]
+compression = log_config["compression"]
+level = log_config["level"]
 
-# Setup Loguru logging
-logger.add(log_file_path, rotation="00:00", compression="zip", level="INFO")
+# Set up logging
+logger.add(log_file, rotation=rotation, compression=compression, level=level)
 
-logger.info("Logger initialized and logging to logs/gesture_logs.log")
+logger.info("Logger initialized.")
 
-# Export logger for use in other scripts
+# Export logger
 __all__ = ["logger"]
