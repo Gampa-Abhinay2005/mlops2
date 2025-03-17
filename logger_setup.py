@@ -1,9 +1,8 @@
+import os
 from loguru import logger
 
-# Configure Loguru Logging
-logger.add("gesture_logs.log", rotation="00:00", compression="zip", level="INFO")
+os.makedirs("logs", exist_ok=True)
 
-logger.info("Logger initialized")
+logger.add("logs/gesture_logs.log", rotation="00:00", compression="zip", level="INFO")
 
-# Export logger for use in other scripts
-__all__ = ["logger"]
+logger.info("Logging initialized in logs/ folder")
