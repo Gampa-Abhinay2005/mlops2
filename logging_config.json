@@ -1,0 +1,7 @@
+{
+    "log_file_name": "logs/gesture_logs.log",
+    "min_log_level": "INFO",
+    "log_rotation": "00:00",
+    "log_compression": "zip"
+  }
+  

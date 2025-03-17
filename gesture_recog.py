@@ -4,7 +4,7 @@ import pyautogui
 import time
 from logger_setup import logger  # Import the configured logger
 
-logger.info("Starting Gesture-Controlled Game")
+logger.info("Logging system initialized")
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
