@@ -1,8 +1,4 @@
-"""Gesture Recognition Module.
-
-This module detects hand gestures using MediaPipe Hands and sends recognized gestures
-to an API for further processing.
-"""
+"""gesture recognition processing."""
 
 from __future__ import annotations
 
@@ -13,111 +9,148 @@ from typing import Literal
 import cv2
 import httpx
 import mediapipe as mp
-from loguru import logger
+import pyautogui
 
-# Constants for gesture detection thresholds
-THUMB_TIP = 4
-INDEX_TIP = 8
-MIDDLE_TIP = 12
-RING_TIP = 16
-PINKY_TIP = 20
-THRESHOLD_NEAR = 0.03
-THRESHOLD_POINT = 0.05
+from logger_setup import logger
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 
 
 class GestureRecognition:
-    """Gesture Recognition class to detect hand gestures and send them to an API."""
+    """Class for real-time gesture recognition using MediaPipe Hands."""
 
     def __init__(self, api_source: Literal["FastAPI", "Other"] = "FastAPI") -> None:
-        """Initialize GestureRecognition with an API source."""
+        """Initialize gesture recognition system with API source."""
         self.API_SOURCE = api_source
         self.API_URL = (
-            "http://localhost:8000/predict"
+            "http://127.0.0.1:8000/process_gesture/"
             if self.API_SOURCE == "FastAPI"
-            else "http://other-api.com"
+            else "http://127.0.0.1:3000/process_gesture/"
         )
-
-        self.prev_gesture = None
-        self.last_action_time = time.time()
-        self.action_delay = 1.0  # Minimum delay between actions in seconds
 
         logger.info(f"Using {self.API_SOURCE} for gesture recognition.")
-
-        self.hands = mp_hands.Hands(
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.7,
-        )
+        self.hands = mp_hands.Hands(min_detection_confidence=0.7,
+                                    min_tracking_confidence=0.7)
         self.cap = cv2.VideoCapture(0)
 
+        self.prev_gesture: str = ""
+        self.cooldown_time = 0.01  # Lower cooldown for real-time actions
+        self.last_action_time = time.time()
+        self.lock = threading.Lock()
+
     def send_gesture_to_api(self, gesture: str) -> None:
-        """Send recognized gesture to the API."""
+        """Send API request asynchronously in a separate thread to avoid lag."""
         try:
             with httpx.Client() as client:
                 response = client.post(self.API_URL, json={"gesture": gesture})
-                logger.info(f"API Response: {response.json()}")
+                # logger.info("API Response: %s", response.json())
         except httpx.RequestError as e:
-            logger.exception(f"Failed to send data to API: {e}")
-
-    def detect_gesture(self, landmarks: list[tuple[float, float]]) -> str:
-        """Determine the gesture based on hand landmarks."""
-        if landmarks[THUMB_TIP][1] < landmarks[THUMB_TIP - 2][1]:
-            return "Thumbs Up"
-        if all(landmarks[i][1] < landmarks[i - 2][1] for i in
-                [INDEX_TIP, MIDDLE_TIP,RING_TIP, PINKY_TIP]):
-            return "Open Palm"
-        if (
-            abs(landmarks[THUMB_TIP][0] - landmarks[INDEX_TIP][0]) < THRESHOLD_NEAR
-            and abs(landmarks[THUMB_TIP][1] - landmarks[INDEX_TIP][1]) < THRESHOLD_NEAR
-        ):
-            return "Ok"
-        if landmarks[INDEX_TIP][0] < landmarks[INDEX_TIP - 2][0] and abs(
-            landmarks[INDEX_TIP][1] - landmarks[INDEX_TIP - 2][1]) < THRESHOLD_POINT:
-            return "Point Left"
-        if landmarks[INDEX_TIP][0] > landmarks[INDEX_TIP - 2][0] and abs(
-            landmarks[INDEX_TIP][1] - landmarks[INDEX_TIP - 2][1]) < THRESHOLD_POINT:
-            return "Point Right"
-        return "Unknown"
-
+            logger.exception("Failed to send data to API: %s", e)
+            
     def recognize_gesture(self) -> tuple[cv2.Mat | None, str]:
         """Detect hand gestures and return the processed frame and detected gesture."""
         ret, frame = self.cap.read()
         if not ret:
-            return None, "No Frame Captured"
+            return None, "Error: Camera feed not available"
 
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(frame_rgb)
+        frame = cv2.flip(frame, 1)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.hands.process(rgb_frame)
+
         gesture = "Unknown"
 
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
-                mp_drawing.draw_landmarks(frame, hand_landmarks,
-                                        mp_hands.HAND_CONNECTIONS)
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
-                gesture = self.detect_gesture(landmarks)
+
+                index_finger_tip = landmarks[8]   # Index finger tip
+                middle_finger_tip = landmarks[12] # Middle finger tip
+                ring_finger_tip = landmarks[16]   # Ring finger tip
+                pinky_finger_tip = landmarks[20]  # Pinky finger tip
+                thumb_tip = landmarks[4]          # Thumb tip
+
+                index_finger_dip = landmarks[6]  # Index DIP (near knuckle)
+                middle_finger_dip = landmarks[10] # Middle DIP
+                ring_finger_dip = landmarks[14]   # Ring DIP
+                pinky_finger_dip = landmarks[18]  # Pinky DIP
+
+                # 👊 **Fist Detection**: All fingertips below their DIPs
+                if (
+                    index_finger_tip[1] > index_finger_dip[1] and
+                    middle_finger_tip[1] > middle_finger_dip[1] and
+                    ring_finger_tip[1] > ring_finger_dip[1] and
+                    pinky_finger_tip[1] > pinky_finger_dip[1]
+                ):
+                    gesture = "Fist"
+
+                # 👍 **Thumbs Up**: Thumb up, all other fingers down
+                elif (
+                    thumb_tip[1] < index_finger_dip[1] and  # Thumb is raised above DIP
+                    index_finger_tip[1] > index_finger_dip[1] and  # Index down
+                    middle_finger_tip[1] > middle_finger_dip[1] and  # Middle down
+                    ring_finger_tip[1] > ring_finger_dip[1] and  # Ring down
+                    pinky_finger_tip[1] > pinky_finger_dip[1]  # Pinky down
+                ):
+                    gesture = "Thumbs Up"
+
+                # ✋ **Open Palm**: All fingertips above their DIPs
+                elif (
+                    index_finger_tip[1] < index_finger_dip[1] and
+                    middle_finger_tip[1] < middle_finger_dip[1] and
+                    ring_finger_tip[1] < ring_finger_dip[1] and
+                    pinky_finger_tip[1] < pinky_finger_dip[1]
+                ):
+                    gesture = "Open Palm"
+
+                # 👈 **Point Left**: Index extended left, other fingers not extended
+                elif (
+                    index_finger_tip[0] < index_finger_dip[0] and  # Index pointing left
+                    abs(index_finger_tip[1] - index_finger_dip[1]) < 0.05 and  # Not raised
+                    middle_finger_tip[1] > middle_finger_dip[1] and
+                    ring_finger_tip[1] > ring_finger_dip[1] and
+                    pinky_finger_tip[1] > pinky_finger_dip[1]
+                ):
+                    gesture = "Point Left"
+
+                # 👉 **Point Right**: Index extended right, other fingers not extended
+                elif (
+                    index_finger_tip[0] > index_finger_dip[0] and  # Index pointing right
+                    abs(index_finger_tip[1] - index_finger_dip[1]) < 0.05 and  # Not raised
+                    middle_finger_tip[1] > middle_finger_dip[1] and
+                    ring_finger_tip[1] > ring_finger_dip[1] and
+                    pinky_finger_tip[1] > pinky_finger_dip[1]
+                ):
+                    gesture = "Point Right"
 
         # Send API request only when the gesture changes
         if gesture != self.prev_gesture:
-            threading.Thread(target=self.send_gesture_to_api, args=(gesture,),
-                            daemon=True).start()
-            self.prev_gesture = gesture
+            threading.Thread(target=self.send_gesture_to_api, args=(gesture,), daemon=True).start()
 
         # Trigger actions in real-time without lag
-        if time.time() - self.last_action_time > self.action_delay:
+        if time.time() - self.last_action_time > self.cooldown_time:
+            if gesture == "Fist":
+                pyautogui.press("space")
+                logger.info("Action Triggered: Jump")
+            elif gesture == "Thumbs Up":
+                pyautogui.press("up")
+                logger.info("Action Triggered: Move Up")
+            elif gesture == "Open Palm":
+                pyautogui.press("p")
+                logger.info("Action Triggered: Pause Game")
+            elif gesture == "Point Left":
+                pyautogui.press("left")
+                logger.info("Action Triggered: Move Left")
+            elif gesture == "Point Right":
+                pyautogui.press("right")
+                logger.info("Action Triggered: Move Right")
+
+            self.prev_gesture = gesture
             self.last_action_time = time.time()
 
-        cv2.putText(
-            frame,
-            f"Gesture: {gesture}",
-            (50, 100),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2,
-        )
-
+        cv2.putText(frame, f"Gesture: {gesture}", (50, 100),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return frame, f"Detected Gesture: {gesture}"
 
     def run(self) -> None:

@@ -1,9 +1,17 @@
 service: "bentoml_service:svc"
+
 labels:
   owner: "user"
   project: "gesture_recognition"
+
 include:
   - "bentoml_service.py"
+  - "validate.py"
+  - "logger_setup.py"
+  - "config.toml"
+
 python:
   packages:
-    - "*.py" 
+    - "*.py"
+  requirements_txt: requirements.txt
+

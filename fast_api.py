@@ -39,8 +39,8 @@ async def process_gesture(data: GestureData) -> dict:
 if __name__ == "__main__":
     logger.info("Starting FastAPI server...")
     uvicorn.run(
-        app,
-        host=server_config["host"],
-        port=server_config["port"],
-        workers=server_config["workers"],
+        "fast_api:app",
+        host=server_config.host,
+        port=server_config.port,
+        workers=server_config.workers,
     )
