@@ -1,3 +1,8 @@
+"""Log server for receiving and storing log messages.
+
+This script listens for log messages from the ZeroMQ server and logs them to a file.
+"""
+
 import zmq
 from loguru import logger
 

@@ -1,0 +1,9 @@
+service: "bentoml_service:svc"
+labels:
+  owner: "user"
+  project: "gesture_recognition"
+include:
+  - "bentoml_service.py"
+python:
+  packages:
+    - "*.py" 

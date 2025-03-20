@@ -1,3 +1,9 @@
+"""Logger setup module.
+
+This module initializes the Loguru logger based on configuration settings
+from `config.toml` and exports it for use in other modules.
+"""
+
 import toml
 from loguru import logger
 
