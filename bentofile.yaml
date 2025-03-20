@@ -11,7 +11,5 @@ include:
   - "config.toml"
 
 python:
-  packages:
-    - "*.py"
   requirements_txt: requirements.txt
 
