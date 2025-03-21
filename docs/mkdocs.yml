@@ -1,1 +1,21 @@
-site_name: My Docs
+site_name: Gesture Recognition System
+
+# Documentation settings
+site_description: A real-time gesture recognition system using MediaPipe, FastAPI, BentoML, and pyautogui.
+
+theme:
+  name: material
+
+# Repository settings
+repo_url: https://github.com/Gampa-Abhinay2005/mlops2
+repo_name: mlops2
+
+
+nav:
+  - Home: index.md
+  - Setup:
+      - Installation: setup.md
+      - Dependencies: dependencies.md
+  - Usage:
+      - Gesture Recognition: gesture_recognition.md
+

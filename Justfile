@@ -6,17 +6,14 @@ venv := ".venv_gesture"
 
 # Create virtual environment and install dependencies using uv
 setup:
-    # Install Linux system dependencies (if needed)
-    sudo apt update && sudo apt install -y ffmpeg libsm6 libxext6  
     # Create virtual environment
     uv venv --python=python3.11 {{venv}}  
-
-    # Install dependencies using uv
-    uv pip install -r requirements.txt  
+    source .venv_gesture/bin/activate && uv pip install -r requirements.txt
+    bentoml build
 
 # Run the main Gradio application
 run:
-    uv venv exec python gradio_ui.py  
+    source .venv_gesture/bin/activate && uv run gradio_ui.py  
 # Clean up virtual environment
 clean:
     rm -rf {{venv}}
